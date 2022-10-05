@@ -1,15 +1,35 @@
 package messages
 
-type MessageSender interface {
-	SendMessage(text string, userId int64) error
-}
+type Commands map[string]Command
 
 type Model struct {
-	tgClient MessageSender
+	commands       Commands
+	interceptor    Command
+	defaultCommand Command
 }
 
-func New(tgClient MessageSender) *Model {
-	return &Model{tgClient}
+type Command interface {
+	Execute(Message) bool
+}
+
+func New() *Model {
+	return &Model{commands: make(Commands)}
+}
+
+func (s *Model) AddCommand(key string, command Command) {
+	s.commands[key] = command
+}
+
+func (s *Model) SetDefaultCommand(command Command) {
+	s.defaultCommand = command
+}
+
+func (s *Model) handleToInterceptor(msg Message) error {
+	intercept := s.interceptor.Execute(msg)
+	if !intercept {
+		s.interceptor = nil
+	}
+	return nil
 }
 
 type Message struct {
@@ -17,11 +37,21 @@ type Message struct {
 	UserID int64
 }
 
-func (s Model) IncomingMessage(msg Message) error {
-	if msg.Text == "/start" {
-		s.tgClient.SendMessage("hello", msg.UserID)
+func (s *Model) IncomingMessage(msg Message) error {
+	if s.interceptor != nil {
+		return s.handleToInterceptor(msg)
+	}
+
+	comm, ok := s.commands[msg.Text]
+
+	if !ok {
+		s.defaultCommand.Execute(msg)
 		return nil
 	}
-	s.tgClient.SendMessage("не знаю эту команду", msg.UserID)
+
+	intercept := comm.Execute(msg)
+	if intercept {
+		s.interceptor = comm
+	}
 	return nil
 }
