@@ -1,10 +1,11 @@
 package tg
 
 import (
+	"log"
+
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/pkg/errors"
 	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/model/messages"
-	"log"
 )
 
 type Client struct {
@@ -25,8 +26,10 @@ func New(getter TokenGetter) (*Client, error) {
 	return &Client{client: client}, nil
 }
 
-func (c Client) SendMessage(text string, userID int64) error {
-	_, err := c.client.Send(tgbotapi.NewMessage(userID, text))
+func (c Client) SendMessage(text string, userID int64, markup interface{}) error {
+	msg := tgbotapi.NewMessage(userID, text)
+	msg.ReplyMarkup = markup
+	_, err := c.client.Send(msg)
 
 	if err != nil {
 		return errors.Wrap(err, "client.send")
@@ -45,12 +48,14 @@ func (c *Client) ListenUpdates(msgModel *messages.Model) {
 
 	for update := range updates {
 		if update.Message != nil { // If we got a message
-			log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
+			log.Printf("[%s][%d] %s", update.Message.From.UserName, update.Message.From.ID, update.Message.Text)
 
-			err := msgModel.IncomingMessage(messages.Message{
-				Text:   update.Message.Text,
-				UserID: update.Message.From.ID,
-			})
+			err := msgModel.IncomingMessage(
+				messages.Message{
+					Text:   update.Message.Text,
+					UserID: update.Message.From.ID,
+				},
+			)
 			if err != nil {
 				log.Println("error processing message:", err)
 			}

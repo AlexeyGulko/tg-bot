@@ -8,6 +8,7 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
+	messages "gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/model/messages"
 )
 
 // MockMessageSender is a mock of MessageSender interface.
@@ -34,13 +35,52 @@ func (m *MockMessageSender) EXPECT() *MockMessageSenderMockRecorder {
 }
 
 // SendMessage mocks base method.
-func (m *MockMessageSender) SendMessage(text string, userId int64) {
+func (m *MockMessageSender) SendMessage(text string, userId int64, markup interface{}) error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SendMessage", text, userId)
+	ret := m.ctrl.Call(m, "SendMessage", text, userId, markup)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // SendMessage indicates an expected call of SendMessage.
-func (mr *MockMessageSenderMockRecorder) SendMessage(text, userId interface{}) *gomock.Call {
+func (mr *MockMessageSenderMockRecorder) SendMessage(text, userId, markup interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendMessage", reflect.TypeOf((*MockMessageSender)(nil).SendMessage), text, userId)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendMessage", reflect.TypeOf((*MockMessageSender)(nil).SendMessage), text, userId, markup)
+}
+
+// MockCommand is a mock of Command interface.
+type MockCommand struct {
+	ctrl     *gomock.Controller
+	recorder *MockCommandMockRecorder
+}
+
+// MockCommandMockRecorder is the mock recorder for MockCommand.
+type MockCommandMockRecorder struct {
+	mock *MockCommand
+}
+
+// NewMockCommand creates a new mock instance.
+func NewMockCommand(ctrl *gomock.Controller) *MockCommand {
+	mock := &MockCommand{ctrl: ctrl}
+	mock.recorder = &MockCommandMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockCommand) EXPECT() *MockCommandMockRecorder {
+	return m.recorder
+}
+
+// Execute mocks base method.
+func (m *MockCommand) Execute(arg0 messages.Message) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Execute", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Execute indicates an expected call of Execute.
+func (mr *MockCommandMockRecorder) Execute(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockCommand)(nil).Execute), arg0)
 }
