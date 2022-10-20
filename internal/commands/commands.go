@@ -1,76 +1,78 @@
 package commands
 
 import (
-	"log"
 	"time"
 
+	"github.com/shopspring/decimal"
 	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/dto"
 	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/model/messages"
+	"golang.org/x/net/context"
 )
 
 type Storage interface {
-	Add(int64, messages.Command)
-	Get(int64) (messages.Command, bool)
+	Add(int64, Command)
+	Get(int64) (Command, bool)
 	Delete(int64)
+}
+
+type CommandError struct {
+	Retry bool
+	text  string
+}
+
+func (e CommandError) DoRetry() bool {
+	return e.Retry
+}
+
+func (e CommandError) Error() string {
+	return e.text
 }
 
 type SpendingStorage interface {
 	Add(int64, dto.Spending)
 	Get(int64) ([]dto.Spending, bool)
-	GetReportByCategory(int64, time.Time) map[string]int64
+	GetReportByCategory(int64, time.Time) map[string][]dto.Spending
+}
+
+type UserStorage interface {
+	Add(dto.User)
+	Get(int64) (dto.User, bool)
 }
 
 type MessageSender interface {
 	SendMessage(text string, userId int64, markup interface{}) error
 }
 
+type Config interface {
+	Currencies() []string
+	DefaultCurrency() string
+}
+
+type CurrencyService interface {
+	ConvertFrom(context.Context, string, decimal.Decimal, time.Time) (decimal.Decimal, error)
+	ConvertTo(context.Context, string, decimal.Decimal, time.Time) (decimal.Decimal, error)
+}
+
 type Command struct {
-	CallBack func(messages.Message) bool
+	Finished    bool
+	NextCommand messages.Command
+	Retry       bool
+	CallBack    func(ctx context.Context, message dto.Message) messages.CommandError
 }
 
-func (c Command) Execute(msg messages.Message) bool {
-	return c.CallBack(msg)
+func (c Command) DoRetry() bool {
+	return c.Retry
 }
 
-func Hello(tgClient MessageSender) Command {
-	return Command{
-		CallBack: func(message messages.Message) bool {
-			err := tgClient.SendMessage("Привет! \n я подсчитываю твои расходы", message.UserID, nil)
-			if err != nil {
-				log.Printf("%s", err)
-			}
-
-			Help(tgClient).Execute(message)
-			return false
-		},
-	}
+func (c Command) Execute(ctx context.Context, message dto.Message) messages.CommandError {
+	return c.CallBack(ctx, message)
 }
 
-func Help(tgClient MessageSender) Command {
-	return Command{
-		CallBack: func(message messages.Message) bool {
-			err := tgClient.SendMessage(
-				"Список комнд: \n /spend - добавить расход \n "+
-					"вывести сумму расходов за период - /report",
-				message.UserID,
-				nil,
-			)
-			if err != nil {
-				log.Printf("%s", err)
-			}
-			return false
-		},
-	}
+func (c Command) SetNext(comm Command) Command {
+	c.NextCommand = comm
+	return c
 }
 
-func NotFoundCommand(tgClient MessageSender) Command {
-	return Command{
-		CallBack: func(message messages.Message) bool {
-			err := tgClient.SendMessage("не знаю эту команду", message.UserID, nil)
-			if err != nil {
-				log.Printf("%s", err)
-			}
-			return false
-		},
-	}
+func (c Command) Next() (messages.Command, bool) {
+	return c.NextCommand, c.NextCommand != nil
 }

@@ -8,45 +8,10 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
+	dto "gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/dto"
 	messages "gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/model/messages"
+	context "golang.org/x/net/context"
 )
-
-// MockMessageSender is a mock of MessageSender interface.
-type MockMessageSender struct {
-	ctrl     *gomock.Controller
-	recorder *MockMessageSenderMockRecorder
-}
-
-// MockMessageSenderMockRecorder is the mock recorder for MockMessageSender.
-type MockMessageSenderMockRecorder struct {
-	mock *MockMessageSender
-}
-
-// NewMockMessageSender creates a new mock instance.
-func NewMockMessageSender(ctrl *gomock.Controller) *MockMessageSender {
-	mock := &MockMessageSender{ctrl: ctrl}
-	mock.recorder = &MockMessageSenderMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockMessageSender) EXPECT() *MockMessageSenderMockRecorder {
-	return m.recorder
-}
-
-// SendMessage mocks base method.
-func (m *MockMessageSender) SendMessage(text string, userId int64, markup interface{}) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SendMessage", text, userId, markup)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// SendMessage indicates an expected call of SendMessage.
-func (mr *MockMessageSenderMockRecorder) SendMessage(text, userId, markup interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendMessage", reflect.TypeOf((*MockMessageSender)(nil).SendMessage), text, userId, markup)
-}
 
 // MockCommand is a mock of Command interface.
 type MockCommand struct {
@@ -72,15 +37,143 @@ func (m *MockCommand) EXPECT() *MockCommandMockRecorder {
 }
 
 // Execute mocks base method.
-func (m *MockCommand) Execute(arg0 messages.Message) bool {
+func (m *MockCommand) Execute(arg0 context.Context, arg1 dto.Message) messages.CommandError {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Execute", arg0)
-	ret0, _ := ret[0].(bool)
+	ret := m.ctrl.Call(m, "Execute", arg0, arg1)
+	ret0, _ := ret[0].(messages.CommandError)
 	return ret0
 }
 
 // Execute indicates an expected call of Execute.
-func (mr *MockCommandMockRecorder) Execute(arg0 interface{}) *gomock.Call {
+func (mr *MockCommandMockRecorder) Execute(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockCommand)(nil).Execute), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockCommand)(nil).Execute), arg0, arg1)
+}
+
+// Next mocks base method.
+func (m *MockCommand) Next() (messages.Command, bool) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Next")
+	ret0, _ := ret[0].(messages.Command)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
+}
+
+// Next indicates an expected call of Next.
+func (mr *MockCommandMockRecorder) Next() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockCommand)(nil).Next))
+}
+
+// MockStorage is a mock of Storage interface.
+type MockStorage struct {
+	ctrl     *gomock.Controller
+	recorder *MockStorageMockRecorder
+}
+
+// MockStorageMockRecorder is the mock recorder for MockStorage.
+type MockStorageMockRecorder struct {
+	mock *MockStorage
+}
+
+// NewMockStorage creates a new mock instance.
+func NewMockStorage(ctrl *gomock.Controller) *MockStorage {
+	mock := &MockStorage{ctrl: ctrl}
+	mock.recorder = &MockStorageMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockStorage) EXPECT() *MockStorageMockRecorder {
+	return m.recorder
+}
+
+// Add mocks base method.
+func (m *MockStorage) Add(arg0 int64, arg1 messages.Command) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Add", arg0, arg1)
+}
+
+// Add indicates an expected call of Add.
+func (mr *MockStorageMockRecorder) Add(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Add", reflect.TypeOf((*MockStorage)(nil).Add), arg0, arg1)
+}
+
+// Delete mocks base method.
+func (m *MockStorage) Delete(arg0 int64) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Delete", arg0)
+}
+
+// Delete indicates an expected call of Delete.
+func (mr *MockStorageMockRecorder) Delete(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockStorage)(nil).Delete), arg0)
+}
+
+// Get mocks base method.
+func (m *MockStorage) Get(arg0 int64) (messages.Command, bool) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Get", arg0)
+	ret0, _ := ret[0].(messages.Command)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
+}
+
+// Get indicates an expected call of Get.
+func (mr *MockStorageMockRecorder) Get(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockStorage)(nil).Get), arg0)
+}
+
+// MockCommandError is a mock of CommandError interface.
+type MockCommandError struct {
+	ctrl     *gomock.Controller
+	recorder *MockCommandErrorMockRecorder
+}
+
+// MockCommandErrorMockRecorder is the mock recorder for MockCommandError.
+type MockCommandErrorMockRecorder struct {
+	mock *MockCommandError
+}
+
+// NewMockCommandError creates a new mock instance.
+func NewMockCommandError(ctrl *gomock.Controller) *MockCommandError {
+	mock := &MockCommandError{ctrl: ctrl}
+	mock.recorder = &MockCommandErrorMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockCommandError) EXPECT() *MockCommandErrorMockRecorder {
+	return m.recorder
+}
+
+// DoRetry mocks base method.
+func (m *MockCommandError) DoRetry() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DoRetry")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// DoRetry indicates an expected call of DoRetry.
+func (mr *MockCommandErrorMockRecorder) DoRetry() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DoRetry", reflect.TypeOf((*MockCommandError)(nil).DoRetry))
+}
+
+// Error mocks base method.
+func (m *MockCommandError) Error() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Error")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// Error indicates an expected call of Error.
+func (mr *MockCommandErrorMockRecorder) Error() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Error", reflect.TypeOf((*MockCommandError)(nil).Error))
 }

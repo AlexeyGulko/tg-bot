@@ -1,1 +1,8 @@
-token: 
+token:
+currencies:
+  - USD
+  - RUB
+  - CNY
+  - EUR
+currency_default: RUB
+currency_update_period: 30s
