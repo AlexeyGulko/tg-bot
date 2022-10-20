@@ -15,7 +15,6 @@ func NewStorage() *Storage {
 }
 
 func (s *Storage) Add(UserID int64, model dto.Spending) {
-	println(UserID, model.Amount, model.Category)
 	s.store[UserID] = append(s.store[UserID], model)
 }
 
@@ -26,13 +25,13 @@ func (s *Storage) Get(UserID int64) ([]dto.Spending, bool) {
 	return nil, false
 }
 
-func (s *Storage) GetReportByCategory(UserID int64, date time.Time) map[string]int64 {
+func (s *Storage) GetReportByCategory(UserID int64, date time.Time) map[string][]dto.Spending {
 	spending, _ := s.Get(UserID)
 
-	res := make(map[string]int64)
+	res := make(map[string][]dto.Spending)
 	for _, v := range spending {
 		if v.Date.After(date) {
-			res[v.Category] += v.Amount
+			res[v.Category] = append(res[v.Category], v)
 		}
 	}
 

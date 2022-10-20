@@ -1,19 +1,37 @@
 package messages
 
+import (
+	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/dto"
+	"golang.org/x/net/context"
+)
+
 type Commands map[string]Command
 
 type Model struct {
 	commands       Commands
-	interceptor    Command
 	defaultCommand Command
+	stopCommand    Command
+	commandStorage Storage
 }
 
 type Command interface {
-	Execute(Message) bool
+	Execute(context.Context, dto.Message) CommandError
+	Next() (Command, bool)
 }
 
-func New() *Model {
-	return &Model{commands: make(Commands)}
+type Storage interface {
+	Add(int64, Command)
+	Get(int64) (Command, bool)
+	Delete(int64)
+}
+
+type CommandError interface {
+	error
+	DoRetry() bool
+}
+
+func New(storage Storage) *Model {
+	return &Model{commands: make(Commands), commandStorage: storage}
 }
 
 func (s *Model) AddCommand(key string, command Command) {
@@ -24,34 +42,48 @@ func (s *Model) SetDefaultCommand(command Command) {
 	s.defaultCommand = command
 }
 
-func (s *Model) handleToInterceptor(msg Message) error {
-	intercept := s.interceptor.Execute(msg)
-	if !intercept {
-		s.interceptor = nil
-	}
-	return nil
+func (s *Model) SetStopCommand(command Command) {
+	s.stopCommand = command
 }
 
-type Message struct {
-	Text   string
-	UserID int64
-}
-
-func (s *Model) IncomingMessage(msg Message) error {
-	if s.interceptor != nil {
-		return s.handleToInterceptor(msg)
-	}
-
-	comm, ok := s.commands[msg.Text]
-
-	if !ok {
-		s.defaultCommand.Execute(msg)
+func (s *Model) IncomingMessage(ctx context.Context, msg dto.Message) error {
+	if msg.Text == "/stop" {
+		err := s.stopCommand.Execute(ctx, msg)
+		s.commandStorage.Delete(msg.UserID)
+		if err != nil {
+			return err
+		}
 		return nil
 	}
 
-	intercept := comm.Execute(msg)
-	if intercept {
-		s.interceptor = comm
+	var command Command
+	hasCommand := false
+	stored := false
+
+	command, stored = s.commandStorage.Get(msg.UserID)
+
+	if !stored {
+		command, hasCommand = s.commands[msg.Text]
+	}
+
+	if !hasCommand && !stored {
+		err := s.defaultCommand.Execute(ctx, msg)
+		return err
+	}
+
+	err := command.Execute(ctx, msg)
+	if err != nil {
+		if err.DoRetry() {
+			return nil
+		}
+	}
+
+	if v, has := command.Next(); has {
+		s.commandStorage.Add(msg.UserID, v)
+	} else {
+		if stored {
+			s.commandStorage.Delete(msg.UserID)
+		}
 	}
 	return nil
 }

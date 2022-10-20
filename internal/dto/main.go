@@ -1,13 +1,30 @@
 package dto
 
-import "time"
+import (
+	"time"
+
+	"github.com/shopspring/decimal"
+)
+
+type Message struct {
+	Text   string
+	UserID int64
+}
 
 type Spending struct {
-	Amount   int64
+	Amount   decimal.Decimal
 	Category string
 	Date     time.Time
 }
 
-func (m Spending) IsEmpty() bool {
-	return m == Spending{}
+type User struct {
+	ID       int64
+	Currency string
 }
+
+type Currency struct {
+	Code string
+	Rate decimal.Decimal
+}
+
+type CurrencyMap map[string]Currency

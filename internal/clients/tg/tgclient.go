@@ -1,10 +1,12 @@
 package tg
 
 import (
+	"context"
 	"log"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/pkg/errors"
+	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/dto"
 	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/model/messages"
 )
 
@@ -38,7 +40,7 @@ func (c Client) SendMessage(text string, userID int64, markup interface{}) error
 	return nil
 }
 
-func (c *Client) ListenUpdates(msgModel *messages.Model) {
+func (c *Client) ListenUpdates(ctx context.Context, msgModel *messages.Model) {
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 
@@ -46,18 +48,27 @@ func (c *Client) ListenUpdates(msgModel *messages.Model) {
 
 	log.Println("listening for messages")
 
-	for update := range updates {
-		if update.Message != nil { // If we got a message
-			log.Printf("[%s][%d] %s", update.Message.From.UserName, update.Message.From.ID, update.Message.Text)
+	for {
+		select {
+		case <-ctx.Done():
+			c.client.StopReceivingUpdates()
+			log.Println("fetch message stopped")
+			return
+		case update := <-updates:
+			if update.Message != nil { // If we got a message
 
-			err := msgModel.IncomingMessage(
-				messages.Message{
-					Text:   update.Message.Text,
-					UserID: update.Message.From.ID,
-				},
-			)
-			if err != nil {
-				log.Println("error processing message:", err)
+				log.Printf("[%s][%d] %s", update.Message.From.UserName, update.Message.From.ID, update.Message.Text)
+
+				err := msgModel.IncomingMessage(
+					ctx,
+					dto.Message{
+						Text:   update.Message.Text,
+						UserID: update.Message.From.ID,
+					},
+				)
+				if err != nil {
+					log.Println("error processing message:", err)
+				}
 			}
 		}
 	}
