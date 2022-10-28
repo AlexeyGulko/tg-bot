@@ -12,17 +12,20 @@ import (
 	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/model/messages"
 )
 
-func Menu(tgClient commands.MessageSender, config commands.Config, userStorage commands.UserStorage) *commands.Command {
+func Menu(tgClient commands.MessageSender, cfg commands.Config, userStorage commands.UserStorage) *commands.Command {
 
-	currencies := config.Currencies()
+	currencies := cfg.Currencies()
 
 	keyboard := helpers.CreateMarkupMenu(currencies, 2)
 
 	return &commands.Command{
 		CallBack: func(ctx context.Context, message dto.Message) messages.CommandError {
 
-			user, _ := userStorage.Get(message.UserID)
-			err := tgClient.SendMessage(fmt.Sprintf("Текущая валюта: %s\nВыбери валюту", user.Currency), message.UserID, keyboard)
+			user, err := userStorage.GetOrCreate(ctx, dto.User{TgID: message.UserID, Currency: cfg.DefaultCurrency()})
+			if err != nil {
+				log.Printf("%s", err)
+			}
+			err = tgClient.SendMessage(fmt.Sprintf("Текущая валюта: %s\nВыбери валюту", user.Currency), message.UserID, keyboard)
 			if err != nil {
 				log.Printf("%s", err)
 			}
@@ -59,10 +62,20 @@ func Input(tgClient commands.MessageSender, config commands.Config, userStorage 
 				removeMarkup,
 			)
 
-			user, _ := userStorage.Get(message.UserID)
-			user.Currency = message.Text
-			userStorage.Add(user)
+			if err != nil {
+				return commands.CommandError{Text: err.Error(), Retry: false}
+			}
 
+			user, err := userStorage.Get(ctx, message.UserID)
+			if err != nil {
+				return commands.CommandError{Text: err.Error(), Retry: false}
+			}
+			user.Currency = message.Text
+			err = userStorage.Update(ctx, user)
+
+			if err != nil {
+				return commands.CommandError{Text: err.Error(), Retry: false}
+			}
 			if err != nil {
 				log.Printf("%s", err)
 			}

@@ -81,7 +81,7 @@ func (c *Client) GetExchangeRates(ctx context.Context, date time.Time) ([]dto.Cu
 		if err != nil {
 			return nil, err
 		}
-		dtoMap = append(dtoMap, dto.Currency{Code: v.Code, Rate: rate})
+		dtoMap = append(dtoMap, dto.Currency{Code: v.Code, Rate: rate, TimeStamp: date})
 	}
 
 	return dtoMap, nil
