@@ -1,9 +1,9 @@
 package spend
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
-	"regexp"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -13,8 +13,6 @@ import (
 	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/model/messages"
 	"golang.org/x/net/context"
 )
-
-var sumRE = regexp.MustCompile(`(^\d+$)|((^\d+)[\.|,](\d{1,2}$))`)
 
 type CommandSequence struct {
 	tgClient        commands.MessageSender
@@ -51,8 +49,12 @@ func New(
 }
 
 func (c *CommandSequence) StartMessage(ctx context.Context, message dto.Message) messages.CommandError {
-	c.tempSpendings[message.UserID] = dto.Spending{}
-	err := c.tgClient.SendMessage("Введи категорию", message.UserID, nil)
+	user, err := c.userStorage.GetOrCreate(ctx, dto.User{TgID: message.UserID, Currency: c.config.DefaultCurrency()})
+	if err != nil {
+		log.Printf("%s", err)
+	}
+	err = c.tgClient.SendMessage("Введи категорию", message.UserID, nil)
+	c.tempSpendings[message.UserID] = dto.Spending{UserID: user.ID}
 	if err != nil {
 		log.Printf("%s", err)
 	}
@@ -75,27 +77,9 @@ func (c *CommandSequence) Category(ctx context.Context, message dto.Message) mes
 }
 
 func (c *CommandSequence) Sum(ctx context.Context, message dto.Message) messages.CommandError {
-	var sum string
 	var err error
-	matches := sumRE.FindStringSubmatch(message.Text)
 
-	if matches == nil {
-		err := c.tgClient.SendMessage("Неправильный формат суммы попробуй ещё", message.UserID, nil)
-		if err != nil {
-			log.Print(err.Error())
-		}
-		return commands.CommandError{Retry: true}
-	}
-	//первая группа захвата - значение без дробей
-	if len(matches[1]) > 0 {
-		sum = matches[1]
-	}
-
-	//третья группа целая часть, четвертая - дробная
-	if len(matches[3]) > 0 && len(matches[4]) > 0 {
-		sum = fmt.Sprintf("%s.%s", matches[3], matches[4])
-	}
-
+	amount, err := commands.ParseDigitInput(message.Text)
 	if err != nil {
 		err := c.tgClient.SendMessage("Неправильный формат суммы попробуй ещё", message.UserID, nil)
 		if err != nil {
@@ -104,40 +88,88 @@ func (c *CommandSequence) Sum(ctx context.Context, message dto.Message) messages
 		return commands.CommandError{Retry: true}
 	}
 
-	amount, err := decimal.NewFromString(sum)
-	if err != nil {
-		err := c.tgClient.SendMessage("Неправильный формат суммы попробуй ещё", message.UserID, nil)
-		if err != nil {
-			log.Print(err.Error())
-		}
-		return commands.CommandError{Retry: true}
-	}
-
-	user, _ := c.userStorage.Get(message.UserID)
+	user, _ := c.userStorage.Get(ctx, message.UserID)
 	spending := c.tempSpendings[message.UserID]
-	if user.Currency != c.config.DefaultCurrency() {
-		amount, err = c.currencyService.ConvertFrom(ctx, user.Currency, amount, spending.Date)
 
+	year, month, _ := spending.Date.Date()
+
+	firstOfMonth := time.Date(year, month, 1, 0, 0, 0, 0, spending.Date.Location())
+	lastOfMonth := firstOfMonth.AddDate(0, 1, -1)
+
+	spent, err := c.spendStorage.GetSpendingAmount(ctx, user.ID, firstOfMonth, lastOfMonth)
+	if err != sql.ErrNoRows && err != nil {
+		return commands.CommandError{Retry: false}
+	}
+
+	budget := user.MonthBudget
+
+	var rate decimal.Decimal
+	if user.Currency != c.config.DefaultCurrency() {
+		r, err := c.currencyService.GetRate(ctx, user.Currency, spending.Date)
 		if err != nil {
 			return commands.CommandError{Retry: true}
+		}
+		rate = r.Rate
+		amount = amount.Mul(rate)
+	}
+
+	if year == time.Now().Year() && month == time.Now().Month() {
+		if err := c.checkBudget(spent, amount, budget, rate, user); err != nil {
+			return commands.CommandError{Retry: false}
 		}
 	}
 
 	spending.Amount = amount
-	c.tempSpendings[message.UserID] = spending
 
-	c.spendStorage.Add(message.UserID, spending)
+	err = c.spendStorage.Add(ctx, spending)
 	delete(c.tempSpendings, message.UserID)
+	if err != nil {
+		log.Print(err.Error())
+	}
 
 	finMsg :=
 		"\nкатегория: " + spending.Category +
-			"\nсумма: " + sum + " " + user.Currency +
+			"\nсумма: " + message.Text + " " + user.Currency +
 			"\nдата: " + spending.Date.Format("2 1 2006") +
 			"\nуспешно добавлена"
 
 	err = c.tgClient.SendMessage(finMsg, message.UserID, nil)
 	if err != nil {
 		log.Print(err.Error())
+	}
+
+	return nil
+}
+
+func (c *CommandSequence) checkBudget(
+	spent decimal.Decimal,
+	amount decimal.Decimal,
+	budget decimal.Decimal,
+	rate decimal.Decimal,
+	user *dto.User,
+) messages.CommandError {
+	if spent.Add(amount).GreaterThan(budget) && !user.MonthBudget.Equal(decimal.New(0, 0)) {
+		if !rate.Equal(decimal.Decimal{}) {
+			spent = spent.Div(rate)
+			budget = budget.Div(rate)
+		}
+
+		err := c.tgClient.SendMessage(
+			fmt.Sprintf(
+				"В текущем месяце ты превысил бюджет %s %s\n"+
+					"ты можешь потратиить %s %s или увеличить бюджет командой /budget",
+				budget.RoundBank(2),
+				user.Currency,
+				budget.Sub(spent).RoundBank(2),
+				user.Currency,
+			),
+			user.TgID,
+			nil,
+		)
+		if err != nil {
+			log.Print(err.Error())
+		}
+		return commands.CommandError{Retry: false}
 	}
 
 	return nil

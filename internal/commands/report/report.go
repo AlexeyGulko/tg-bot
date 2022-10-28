@@ -70,8 +70,17 @@ func (c *CommandSequence) Report(ctx context.Context, message dto.Message) messa
 		log.Printf("%s", err)
 		return &commands.CommandError{Retry: true}
 	}
-	report := c.spendStorage.GetReportByCategory(message.UserID, period)
+	user, err := c.userStorage.GetOrCreate(ctx, dto.User{TgID: message.UserID, Currency: c.config.DefaultCurrency()})
+	if err != nil {
+		log.Printf("%s", err)
+		return &commands.CommandError{Retry: false}
+	}
+	report, err := c.spendStorage.GetReportByCategory(ctx, user.ID, period)
 
+	if err != nil {
+		log.Printf("%s", err)
+		return &commands.CommandError{Retry: false}
+	}
 	removeMarkup := tgbotapi.NewRemoveKeyboard(true)
 	err = c.tgClient.SendMessage(c.formatSpending(ctx, message.UserID, report, periodName), message.UserID, removeMarkup)
 
@@ -81,13 +90,13 @@ func (c *CommandSequence) Report(ctx context.Context, message dto.Message) messa
 	return nil
 }
 
-func (c *CommandSequence) formatSpending(ctx context.Context, serID int64, report map[string][]dto.Spending, period string) string {
+func (c *CommandSequence) formatSpending(ctx context.Context, userID int64, report map[string][]dto.Spending, period string) string {
 	res := "У тебя нет трат за " + period
 	if len(report) == 0 {
 		return res
 	}
 
-	user, _ := c.userStorage.Get(serID)
+	user, _ := c.userStorage.Get(ctx, userID)
 	res = "Траты за " + period
 	for i, spendings := range report {
 		sum := decimal.Decimal{}

@@ -1,6 +1,7 @@
 package currency
 
 import (
+	"database/sql"
 	"log"
 	"sync"
 	"time"
@@ -32,8 +33,9 @@ type config interface {
 }
 
 type Storage interface {
-	Get(time time.Time, code string) (dto.Currency, bool)
-	Add(time time.Time, currency dto.Currency)
+	Get(ctx context.Context, time time.Time, code string) (*dto.Currency, error)
+	Add(ctx context.Context, currency dto.Currency) error
+	AddBulk(ctx context.Context, currencies []dto.Currency) error
 }
 
 func (s *Service) UpdateRates(ctx context.Context, date time.Time) error {
@@ -48,10 +50,12 @@ func (s *Service) UpdateRates(ctx context.Context, date time.Time) error {
 		}
 	}
 
-	_, has := s.storage.Get(date, code)
-	if has {
-		return nil
+	_, err := s.storage.Get(ctx, date, code)
+
+	if err != sql.ErrNoRows && err != nil {
+		return err
 	}
+
 	log.Printf("update rates on date %s", date.Format("02 01 2006"))
 	allRates, err := s.RatesClient.GetExchangeRates(ctx, date)
 	if err != nil {
@@ -64,12 +68,17 @@ func (s *Service) UpdateRates(ctx context.Context, date time.Time) error {
 		availableCurrencies[v] = struct{}{}
 	}
 
+	filtered := make([]dto.Currency, 0, len(s.config.Currencies()))
 	for _, v := range allRates {
 		if _, has := availableCurrencies[v.Code]; !has {
 			continue
 		}
+		filtered = append(filtered, v)
+	}
 
-		s.storage.Add(date, v)
+	err = s.storage.AddBulk(ctx, filtered)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -83,7 +92,7 @@ func (s *Service) ConvertTo(ctx context.Context, code string, amount decimal.Dec
 	if err != nil {
 		return decimal.Decimal{}, err
 	}
-	return amount.Div(rate), nil
+	return amount.Div(rate.Rate), nil
 }
 
 func (s *Service) ConvertFrom(ctx context.Context, code string, amount decimal.Decimal, time time.Time) (decimal.Decimal, error) {
@@ -94,23 +103,23 @@ func (s *Service) ConvertFrom(ctx context.Context, code string, amount decimal.D
 	if err != nil {
 		return decimal.Decimal{}, err
 	}
-	return amount.Mul(rate), nil
+	return amount.Mul(rate.Rate), nil
 }
 
-func (s *Service) GetRate(ctx context.Context, code string, date time.Time) (decimal.Decimal, error) {
+func (s *Service) GetRate(ctx context.Context, code string, date time.Time) (*dto.Currency, error) {
 	year, month, day := date.Date()
 	date = time.Date(year, month, day, 0, 0, 0, 0, date.Location())
-	rate, has := s.storage.Get(date, code)
+	rate, err := s.storage.Get(ctx, date, code)
 
-	if !has {
+	if err == sql.ErrNoRows {
 		var wg sync.WaitGroup
 		r := update_rates.ChannelR{T: date, Wg: &wg}
 		r.Wg.Add(1)
 		s.ch <- r
 		r.Wg.Wait()
 
-		rate, _ = s.storage.Get(date, code)
+		rate, _ = s.storage.Get(ctx, date, code)
 	}
 
-	return rate.Rate, nil
+	return rate, nil
 }

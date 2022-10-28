@@ -11,9 +11,28 @@ all: format build test lint
 
 build: bindir
 	go build -o ${BINDIR}/bot ${PACKAGE}
+	go build -o ${BINDIR}/goose ./cmd/goose
+
+build-goose: bindir
+	go build -o ${BINDIR}/goose ./cmd/goose
+
+build-seeder: bindir
+	go build -o ${BINDIR}/seeder ./cmd/seeder
 
 test:
 	go test ./...
+
+migration-new:
+	${BINDIR}/goose create ${name} go
+
+migration-up: build-goose
+	${BINDIR}/goose up
+
+migration-down: build-goose
+	${BINDIR}/goose down
+
+migration-status: build-goose
+	${BINDIR}/goose status
 
 run:
 	go run ${PACKAGE}
@@ -26,6 +45,9 @@ lint: install-lint
 
 precommit: format build test lint
 	echo "OK"
+
+seed: build-seeder
+	${BINDIR}/seeder
 
 bindir:
 	mkdir -p ${BINDIR}

@@ -17,10 +17,10 @@ func Hello(tgClient commands.MessageSender, userStorage commands.UserStorage, co
 				log.Printf("%s", err)
 			}
 
-			_, has := userStorage.Get(message.UserID)
+			_, err = userStorage.GetOrCreate(ctx, dto.User{TgID: message.UserID, Currency: config.DefaultCurrency()})
 
-			if !has {
-				userStorage.Add(dto.User{ID: message.UserID, Currency: config.DefaultCurrency()})
+			if err == nil {
+				return commands.CommandError{Text: err.Error(), Retry: false}
 			}
 			return Help(tgClient).Execute(ctx, message)
 		},
@@ -33,7 +33,8 @@ func Help(tgClient commands.MessageSender) *commands.Command {
 			err := tgClient.SendMessage(
 				"Список комнд: \n /spend - добавить расход"+
 					"\n/report - вывести сумму расходов за период "+
-					"\n/currency изменить валюту",
+					"\n/currency изменить валюту"+
+					"\n/budget установить бюджет на месяц",
 				message.UserID,
 				nil,
 			)
