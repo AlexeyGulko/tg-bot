@@ -37,7 +37,7 @@ func (m *MockCommand) EXPECT() *MockCommandMockRecorder {
 }
 
 // Execute mocks base method.
-func (m *MockCommand) Execute(arg0 context.Context, arg1 dto.Message) messages.CommandError {
+func (m *MockCommand) Execute(arg0 context.Context, arg1 *dto.Message) messages.CommandError {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Execute", arg0, arg1)
 	ret0, _ := ret[0].(messages.CommandError)

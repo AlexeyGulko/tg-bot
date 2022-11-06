@@ -15,7 +15,7 @@ type Model struct {
 }
 
 type Command interface {
-	Execute(context.Context, dto.Message) CommandError
+	Execute(context.Context, *dto.Message) CommandError
 	Next() (Command, bool)
 }
 
@@ -46,7 +46,7 @@ func (s *Model) SetStopCommand(command Command) {
 	s.stopCommand = command
 }
 
-func (s *Model) IncomingMessage(ctx context.Context, msg dto.Message) error {
+func (s *Model) IncomingMessage(ctx context.Context, msg *dto.Message) error {
 	if msg.Text == "/stop" {
 		err := s.stopCommand.Execute(ctx, msg)
 		s.commandStorage.Delete(msg.UserID)
@@ -76,6 +76,8 @@ func (s *Model) IncomingMessage(ctx context.Context, msg dto.Message) error {
 		if err.DoRetry() {
 			return nil
 		}
+		s.commandStorage.Delete(msg.UserID)
+		return err
 	}
 
 	if v, has := command.Next(); has {

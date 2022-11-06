@@ -8,8 +8,9 @@ import (
 )
 
 type Message struct {
-	Text   string
-	UserID int64
+	Text    string
+	UserID  int64
+	Command string
 }
 
 type Spending struct {
@@ -41,3 +42,13 @@ type Currency struct {
 }
 
 type CurrencyMap map[string]Currency
+
+type SpendingReport map[string][]SpendingReportItem
+
+type SpendingReportItem struct {
+	Category string
+	Amount   decimal.Decimal
+	Date     time.Time
+	Currency string
+	Rate     decimal.Decimal
+}

@@ -8,6 +8,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"github.com/opentracing/opentracing-go"
 	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/dto"
 )
 
@@ -20,6 +21,8 @@ func NewStorage(db *sql.DB) *Storage {
 }
 
 func (s *Storage) Add(ctx context.Context, currency dto.Currency) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "store currency")
+	defer span.Finish()
 	builder := getBuilder().Insert("rates").Columns(
 		"created_at",
 		"code",
@@ -44,6 +47,8 @@ func (s *Storage) Add(ctx context.Context, currency dto.Currency) error {
 }
 
 func (s *Storage) AddBulk(ctx context.Context, currencies []dto.Currency) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "store currency bulk")
+	defer span.Finish()
 	builder := getBuilder().Insert("rates").Columns(
 		"created_at",
 		"code",
@@ -72,6 +77,8 @@ func (s *Storage) AddBulk(ctx context.Context, currencies []dto.Currency) error 
 }
 
 func (s *Storage) Get(ctx context.Context, date time.Time, code string) (*dto.Currency, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "get currency")
+	defer span.Finish()
 	builder := getBuilder().Select(
 		"id",
 		"code",

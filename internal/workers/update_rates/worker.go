@@ -1,10 +1,11 @@
 package update_rates
 
 import (
-	"log"
 	"sync"
 	"time"
 
+	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/logger"
+	"go.uber.org/zap"
 	"golang.org/x/net/context"
 )
 
@@ -46,10 +47,9 @@ func (w *Worker) Run(ctx context.Context) {
 			case <-ctx.Done():
 				ticker.Stop()
 				close(w.ch)
-				log.Println("update rates stopped")
+				logger.Info("update rates stopped")
 				return
 			case <-ticker.C:
-				log.Println("tic")
 				var wg sync.WaitGroup
 				req := ChannelR{T: time.Now(), Wg: &wg}
 				req.Wg.Add(1)
@@ -57,7 +57,7 @@ func (w *Worker) Run(ctx context.Context) {
 			case req := <-w.ch:
 				err := w.service.UpdateRates(ctx, req.T)
 				if err != nil {
-					log.Println(err.Error())
+					logger.Error("update rates error", zap.Error(err))
 				}
 				req.Wg.Done()
 			}

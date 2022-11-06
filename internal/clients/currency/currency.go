@@ -5,13 +5,14 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/opentracing/opentracing-go"
 	"github.com/shopspring/decimal"
 	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/dto"
+	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/logger"
 	"golang.org/x/net/context"
 	"golang.org/x/text/encoding/charmap"
 )
@@ -32,6 +33,8 @@ func New() *Client {
 }
 
 func (c *Client) GetExchangeRates(ctx context.Context, date time.Time) ([]dto.Currency, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "currency client get rates")
+	defer span.Finish()
 	ctx, cancelCtx := context.WithTimeout(ctx, time.Duration(5*time.Second))
 	defer cancelCtx()
 
@@ -39,19 +42,17 @@ func (c *Client) GetExchangeRates(ctx context.Context, date time.Time) ([]dto.Cu
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 
 	if err != nil {
-		log.Print(err.Error())
 		return nil, err
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		log.Print(err.Error())
 		return nil, err
 	}
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
-			log.Print(err.Error())
+			logger.Error(err.Error())
 		}
 	}(resp.Body)
 

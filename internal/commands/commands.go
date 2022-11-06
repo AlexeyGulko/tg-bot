@@ -20,21 +20,25 @@ type Storage interface {
 }
 
 type CommandError struct {
-	Retry bool
-	Text  string
+	retry bool
+	err   error
 }
 
-func (e CommandError) DoRetry() bool {
-	return e.Retry
+func NewError(err error, retry bool) *CommandError {
+	return &CommandError{err: err, retry: retry}
 }
 
-func (e CommandError) Error() string {
-	return e.Text
+func (e *CommandError) DoRetry() bool {
+	return e.retry
+}
+
+func (e *CommandError) Error() string {
+	return e.err.Error()
 }
 
 type SpendingStorage interface {
 	Add(context.Context, dto.Spending) error
-	GetReportByCategory(context.Context, uuid.UUID, time.Time) (map[string][]dto.Spending, error)
+	GetReportByCategory(context.Context, uuid.UUID, time.Time, time.Time) (dto.SpendingReport, error)
 	GetSpendingAmount(ctx context.Context, UserID uuid.UUID, start time.Time, end time.Time) (decimal.Decimal, error)
 }
 
@@ -46,7 +50,7 @@ type UserStorage interface {
 }
 
 type MessageSender interface {
-	SendMessage(text string, userId int64, markup interface{}) error
+	SendMessage(ctx context.Context, text string, userId int64, markup interface{}) error
 }
 
 type Config interface {
@@ -64,7 +68,7 @@ type Command struct {
 	Finished    bool
 	NextCommand messages.Command
 	Retry       bool
-	CallBack    func(ctx context.Context, message dto.Message) messages.CommandError
+	CallBack    func(ctx context.Context, message *dto.Message) messages.CommandError
 }
 
 var DigitInput = regexp.MustCompile(`(^\d+$)|((^\d+)[\s|\.|,](\d{1,2}$))`)
@@ -73,7 +77,7 @@ func (c Command) DoRetry() bool {
 	return c.Retry
 }
 
-func (c Command) Execute(ctx context.Context, message dto.Message) messages.CommandError {
+func (c Command) Execute(ctx context.Context, message *dto.Message) messages.CommandError {
 	return c.CallBack(ctx, message)
 }
 

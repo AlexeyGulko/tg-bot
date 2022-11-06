@@ -3,7 +3,6 @@ version: "3.2"
 services:
   db:
     image: postgres:15rc2-alpine3.16
-    restart: always
     volumes:
       - ./bin/postgres:/var/lib/postgresql/data
     ports:
@@ -12,3 +11,108 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_USER: user
       POSTGRES_DB: spending_bot
+
+  app:
+    build: ./
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data
+      - ./data/file.d/:/app/logs
+      - ./cmd/bot:/app/cmd/bot
+      - ./internal:/app/internal
+    links:
+      - db
+      - jaeger
+    depends_on:
+      - db
+      - jaeger
+    command: sh -c "go build  -o /app/bin/bot /app/cmd/bot && exec bin/bot 2>&1 | tee /app/logs/log.txt"
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.18
+    ports:
+      - 5775:5775/udp
+      - 6831:6831/udp
+      - 6832:6832/udp
+      - 5778:5778
+      - 16686:16686 # web
+      - 14268:14268
+      - 9411:9411
+
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - 9090:9090
+    volumes:
+      - ./data/config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./data/config/alerts.yml:/etc/prometheus/alerts.yml
+    links:
+      - app
+    depends_on:
+      - app
+    extra_hosts:
+      - host.docker.internal:host-gateway
+
+  grafana:
+    image: grafana/grafana-oss
+    ports:
+      - 3000:3000
+    volumes:
+      - ./data/grafana:/var/lib/grafana
+    links:
+      - prometheus
+
+  filed:
+    command: /file.d/file.d --config /config.yaml
+    image: ozonru/file.d:latest-linux-amd64
+    volumes:
+      - ./data/config/filed.yml:/config.yaml
+      - ./data/file.d:/tmp
+    links:
+      - graylog
+    depends_on:
+      - graylog
+
+  mongodb:
+    image: mongo:3
+    volumes:
+      - ./data/mongo:/data/db
+
+  elasticsearch:
+    image: elasticsearch:7.17.6
+    # volumes:
+    #   - ./data/elastic:/usr/share/elasticsearch/data
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+
+  graylog:
+    image: graylog/graylog:4.3
+    volumes:
+      - ./data/config/graylog.conf:/usr/share/graylog/data/config/graylog.conf
+    environment:
+      # (must be at least 16 characters)
+      - GRAYLOG_PASSWORD_SECRET=EabOdthinPafivup
+      # Password: admin
+      - GRAYLOG_ROOT_PASSWORD_SHA2=8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918
+      - GRAYLOG_HTTP_BIND_ADDRESS=0.0.0.0:7555
+      - GRAYLOG_HTTP_EXTERNAL_URI=http://127.0.0.1:7555/
+    links:
+      - mongodb:mongo
+      - elasticsearch
+    depends_on:
+      - mongodb
+      - elasticsearch
+    ports:
+      # Graylog web interface and REST API
+      - 7555:7555
+      # Syslog TCP
+      - 8514:8514
+      # Syslog UDP
+      - 8514:8514/udp
+      # GELF TCP
+      - 12201:12201
+
+
