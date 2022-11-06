@@ -2,12 +2,13 @@ package tg
 
 import (
 	"context"
-	"log"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/dto"
-	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/model/messages"
+	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/logger"
+	"go.uber.org/zap"
 )
 
 type Client struct {
@@ -16,6 +17,10 @@ type Client struct {
 
 type TokenGetter interface {
 	Token() string
+}
+
+type Message interface {
+	IncomingMessage(ctx context.Context, msg *dto.Message) error
 }
 
 func New(getter TokenGetter) (*Client, error) {
@@ -28,7 +33,9 @@ func New(getter TokenGetter) (*Client, error) {
 	return &Client{client: client}, nil
 }
 
-func (c Client) SendMessage(text string, userID int64, markup interface{}) error {
+func (c Client) SendMessage(ctx context.Context, text string, userID int64, markup interface{}) error {
+	span, _ := opentracing.StartSpanFromContext(ctx, "send message to tg")
+	defer span.Finish()
 	msg := tgbotapi.NewMessage(userID, text)
 	msg.ReplyMarkup = markup
 	_, err := c.client.Send(msg)
@@ -40,34 +47,31 @@ func (c Client) SendMessage(text string, userID int64, markup interface{}) error
 	return nil
 }
 
-func (c *Client) ListenUpdates(ctx context.Context, msgModel *messages.Model) {
+func (c *Client) ListenUpdates(ctx context.Context, msgModel Message) {
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 
 	updates := c.client.GetUpdatesChan(u)
 
-	log.Println("listening for messages")
+	logger.Info("listening for messages")
 
 	for {
 		select {
 		case <-ctx.Done():
 			c.client.StopReceivingUpdates()
-			log.Println("fetch message stopped")
+			logger.Info("fetch message stopped")
 			return
 		case update := <-updates:
 			if update.Message != nil { // If we got a message
-
-				log.Printf("[%s][%d] %s", update.Message.From.UserName, update.Message.From.ID, update.Message.Text)
-
 				err := msgModel.IncomingMessage(
 					ctx,
-					dto.Message{
+					&dto.Message{
 						Text:   update.Message.Text,
 						UserID: update.Message.From.ID,
 					},
 				)
 				if err != nil {
-					log.Println("error processing message:", err)
+					logger.Error("error processing message:", zap.Error(err))
 				}
 			}
 		}

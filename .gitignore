@@ -2,3 +2,6 @@
 /.vscode
 /.idea
 /data
+/logs/data
+/metrics/data
+/tracing/data

@@ -3,10 +3,10 @@ package user
 import (
 	"context"
 	"database/sql"
-	"log"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/opentracing/opentracing-go"
 	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/dto"
 )
 
@@ -19,6 +19,8 @@ func NewStorage(db *sql.DB) *Storage {
 }
 
 func (s *Storage) Add(ctx context.Context, model dto.User) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "add user")
+	defer span.Finish()
 	query, args, err := addQuery(model)
 	if err != nil {
 		return err
@@ -30,6 +32,8 @@ func (s *Storage) Add(ctx context.Context, model dto.User) error {
 }
 
 func (s *Storage) Get(ctx context.Context, tgId int64) (*dto.User, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "get user")
+	defer span.Finish()
 	query, args, err := getQuery(tgId)
 	if err != nil {
 		return nil, err
@@ -46,6 +50,8 @@ func (s *Storage) Get(ctx context.Context, tgId int64) (*dto.User, error) {
 }
 
 func (s *Storage) Update(ctx context.Context, user *dto.User) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "update user")
+	defer span.Finish()
 	builder := getBuilder().Update("users").
 		Set("currency", user.Currency).
 		Set("updated_at", time.Now()).
@@ -67,16 +73,15 @@ func getBuilder() sq.StatementBuilderType {
 }
 
 func (s *Storage) GetOrCreate(ctx context.Context, model dto.User) (*dto.User, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "get or create user")
+	defer span.Finish()
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
 	defer func(tx *sql.Tx) {
 		if err != nil {
-			err := tx.Rollback()
-			if err != nil {
-				log.Printf("get or create user: %v", err)
-			}
+			err = tx.Rollback()
 		}
 	}(tx)
 
@@ -113,6 +118,8 @@ func (s *Storage) GetOrCreate(ctx context.Context, model dto.User) (*dto.User, e
 }
 
 func GetUserWithTx(ctx context.Context, tx *sql.Tx, model dto.User) (*dto.User, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "get user with tx")
+	defer span.Finish()
 	query, args, err := getQuery(model.TgID)
 	if err != nil {
 		return nil, err

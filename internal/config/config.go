@@ -8,7 +8,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const configFile = "data/config.yml"
+const configFile = "data/config/config.yml"
 
 type Config struct {
 	Token                  string        `yaml:"token"`
@@ -20,6 +20,10 @@ type Config struct {
 	DBPassword             string        `yaml:"db_password"`
 	DBUser                 string        `yaml:"db_user"`
 	DBName                 string        `yaml:"db_name"`
+	DevMode                string        `yaml:"dev_mode"`
+	ServiceName            string        `yaml:"service_name"`
+	JaegerHostPort         string        `yaml:"jaeger_host_port"`
+	Port                   int64         `yaml:"port"`
 }
 
 type Service struct {
@@ -76,4 +80,20 @@ func (s *Service) DBHost() string {
 
 func (s *Service) DBName() string {
 	return s.config.DBName
+}
+
+func (s *Service) DevMode() string {
+	return s.config.DevMode
+}
+
+func (s *Service) ServiceName() string {
+	return s.config.ServiceName
+}
+
+func (s *Service) JaegerHostPort() string {
+	return s.config.JaegerHostPort
+}
+
+func (s *Service) Port() int64 {
+	return s.config.Port
 }

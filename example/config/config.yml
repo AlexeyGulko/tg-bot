@@ -1,0 +1,20 @@
+token:
+port: 8080
+currencies:
+  - USD
+  - RUB
+  - CNY
+  - EUR
+currency_default: RUB
+currency_update_period: 30s
+
+db_user: user
+db_password: password
+db_port: 5432
+db_host: localhost
+#db_host: db //for docker
+db_name: spending_bot
+
+dev_mode: development
+service_name: bot
+jaeger_host_port: jaeger:6831

@@ -2,7 +2,6 @@ package hello
 
 import (
 	"context"
-	"log"
 
 	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/commands"
 	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/dto"
@@ -11,26 +10,36 @@ import (
 
 func Hello(tgClient commands.MessageSender, userStorage commands.UserStorage, config commands.Config) *commands.Command {
 	return &commands.Command{
-		CallBack: func(ctx context.Context, message dto.Message) messages.CommandError {
-			err := tgClient.SendMessage("Привет! \n я подсчитываю твои расходы", message.UserID, nil)
+		CallBack: func(ctx context.Context, message *dto.Message) messages.CommandError {
+			message.Command = "start"
+			err := tgClient.SendMessage(ctx, "Привет! \n я подсчитываю твои расходы", message.UserID, nil)
 			if err != nil {
-				log.Printf("%s", err)
+				return commands.NewError(err, false)
 			}
-
 			_, err = userStorage.GetOrCreate(ctx, dto.User{TgID: message.UserID, Currency: config.DefaultCurrency()})
-
-			if err == nil {
-				return commands.CommandError{Text: err.Error(), Retry: false}
+			if err != nil {
+				return commands.NewError(err, false)
 			}
-			return Help(tgClient).Execute(ctx, message)
+			err = Help(tgClient).Execute(ctx, message)
+			if err != nil {
+				return commands.NewError(err, false)
+			}
+			return nil
 		},
 	}
 }
 
 func Help(tgClient commands.MessageSender) *commands.Command {
 	return &commands.Command{
-		CallBack: func(ctx context.Context, message dto.Message) messages.CommandError {
+		CallBack: func(ctx context.Context, message *dto.Message) messages.CommandError {
+			if len(message.Command) > 0 {
+				message.Command = message.Command + "_help"
+			} else {
+				message.Command = "help"
+			}
+
 			err := tgClient.SendMessage(
+				ctx,
 				"Список комнд: \n /spend - добавить расход"+
 					"\n/report - вывести сумму расходов за период "+
 					"\n/currency изменить валюту"+
@@ -39,9 +48,8 @@ func Help(tgClient commands.MessageSender) *commands.Command {
 				nil,
 			)
 			if err != nil {
-				log.Printf("%s", err)
+				return commands.NewError(err, false)
 			}
-
 			return nil
 		},
 	}
@@ -49,12 +57,16 @@ func Help(tgClient commands.MessageSender) *commands.Command {
 
 func NotFoundCommand(tgClient commands.MessageSender) *commands.Command {
 	return &commands.Command{
-		CallBack: func(ctx context.Context, message dto.Message) messages.CommandError {
-			err := tgClient.SendMessage("не знаю эту команду", message.UserID, nil)
+		CallBack: func(ctx context.Context, message *dto.Message) messages.CommandError {
+			message.Command = "notfound"
+			err := tgClient.SendMessage(ctx, "не знаю эту команду", message.UserID, nil)
 			if err != nil {
-				log.Printf("%s", err)
+				return commands.NewError(err, false)
 			}
-
+			err = Help(tgClient).Execute(ctx, message)
+			if err != nil {
+				return commands.NewError(err, false)
+			}
 			return nil
 		},
 	}
@@ -62,12 +74,12 @@ func NotFoundCommand(tgClient commands.MessageSender) *commands.Command {
 
 func StopCommand(tgClient commands.MessageSender) *commands.Command {
 	return &commands.Command{
-		CallBack: func(ctx context.Context, message dto.Message) messages.CommandError {
-			err := tgClient.SendMessage("Операция отменена", message.UserID, nil)
+		CallBack: func(ctx context.Context, message *dto.Message) messages.CommandError {
+			message.Command = "stop"
+			err := tgClient.SendMessage(ctx, "Операция отменена", message.UserID, nil)
 			if err != nil {
-				log.Printf("%s", err)
+				return commands.NewError(err, false)
 			}
-
 			return nil
 		},
 	}

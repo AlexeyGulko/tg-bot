@@ -2,13 +2,15 @@ package currency
 
 import (
 	"database/sql"
-	"log"
 	"sync"
 	"time"
 
+	"github.com/opentracing/opentracing-go"
 	"github.com/shopspring/decimal"
 	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/dto"
+	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/logger"
 	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/workers/update_rates"
+	"go.uber.org/zap"
 	"golang.org/x/net/context"
 )
 
@@ -39,6 +41,8 @@ type Storage interface {
 }
 
 func (s *Service) UpdateRates(ctx context.Context, date time.Time) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "currency service update rates")
+	defer span.Finish()
 	year, month, day := date.Date()
 	date = time.Date(year, month, day, 0, 0, 0, 0, date.Location())
 
@@ -56,7 +60,7 @@ func (s *Service) UpdateRates(ctx context.Context, date time.Time) error {
 		return err
 	}
 
-	log.Printf("update rates on date %s", date.Format("02 01 2006"))
+	logger.Info("update rates on date", zap.String("date", date.Format("02 01 2006")))
 	allRates, err := s.RatesClient.GetExchangeRates(ctx, date)
 	if err != nil {
 		return err
@@ -107,6 +111,8 @@ func (s *Service) ConvertFrom(ctx context.Context, code string, amount decimal.D
 }
 
 func (s *Service) GetRate(ctx context.Context, code string, date time.Time) (*dto.Currency, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "currency srv get rate")
+	defer span.Finish()
 	year, month, day := date.Date()
 	date = time.Date(year, month, day, 0, 0, 0, 0, date.Location())
 	rate, err := s.storage.Get(ctx, date, code)

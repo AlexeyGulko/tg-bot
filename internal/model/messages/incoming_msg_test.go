@@ -19,21 +19,15 @@ func Test_OnUnknownCommand_ShouldAnswerWithHelpMessage(t *testing.T) {
 	model := messages.New(storage)
 	model.SetDefaultCommand(comm)
 
-	comm.EXPECT().Execute(
-		ctx,
-		dto.Message{
-			Text:   "some text",
-			UserID: 123,
-		}).Return(nil)
+	massage := &dto.Message{
+		Text:   "some text",
+		UserID: 123,
+	}
+	comm.EXPECT().Execute(ctx, massage).Return(nil)
 
 	storage.EXPECT().Get(int64(123)).Return(comm, false)
 
-	err := model.IncomingMessage(
-		ctx,
-		dto.Message{
-			Text:   "some text",
-			UserID: 123,
-		})
+	err := model.IncomingMessage(ctx, massage)
 
 	assert.NoError(t, err)
 }

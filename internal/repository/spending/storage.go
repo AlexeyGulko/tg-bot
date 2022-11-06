@@ -3,12 +3,11 @@ package spending
 import (
 	"context"
 	"database/sql"
-	"log"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
-	"github.com/lib/pq"
+	"github.com/opentracing/opentracing-go"
 	"github.com/shopspring/decimal"
 	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/dto"
 )
@@ -22,6 +21,8 @@ func NewStorage(db *sql.DB) *Storage {
 }
 
 func (s *Storage) Add(ctx context.Context, model dto.Spending) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "store spending")
+	defer span.Finish()
 	builder := getBuilder().Insert("spendings").Columns(
 		"created_at",
 		"user_id",
@@ -47,17 +48,27 @@ func (s *Storage) Add(ctx context.Context, model dto.Spending) error {
 	return err
 }
 
-func (s *Storage) GetReportByCategory(ctx context.Context, UserID uuid.UUID, date time.Time) (map[string][]dto.Spending, error) {
-
+func (s *Storage) GetReportByCategory(
+	ctx context.Context,
+	UserID uuid.UUID,
+	start time.Time,
+	end time.Time,
+) (dto.SpendingReport, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "get spending report")
+	defer span.Finish()
 	builder := getBuilder().Select(
-		"id",
-		"user_id",
-		"category",
-		"amount",
-		"date",
-		"created_at",
-		"updated_at",
-	).From("spendings").Where(sq.Eq{"user_id": UserID}).Where(sq.GtOrEq{"date": date})
+		"s.category",
+		"s.amount",
+		"s.date",
+		"u.currency",
+		"r.rate",
+	).
+		LeftJoin("users u on s.user_id = u.id").
+		LeftJoin("rates r on r.id = (select rl.id from rates rl where u.currency = rl.code and s.date = rl.ts limit 1)").
+		From("spendings s").
+		Where(sq.Eq{"s.user_id": UserID}).
+		Where(sq.GtOrEq{"s.date": start}).
+		Where(sq.LtOrEq{"s.date": end})
 
 	query, args, err := builder.ToSql()
 	if err != nil {
@@ -70,34 +81,30 @@ func (s *Storage) GetReportByCategory(ctx context.Context, UserID uuid.UUID, dat
 	}
 
 	defer func(rows *sql.Rows) {
-		err := rows.Close()
-		if err != nil {
-			log.Fatal(err.Error())
-		}
+		err = rows.Close()
 	}(rows)
 
-	res := make(map[string][]dto.Spending)
+	res := make(dto.SpendingReport)
 
 	for rows.Next() {
-		var spending dto.Spending
-		var updated pq.NullTime
+		var item dto.SpendingReportItem
+		var rate decimal.NullDecimal
 		err = rows.Scan(
-			&spending.ID,
-			&spending.UserID,
-			&spending.Category,
-			&spending.Amount,
-			&spending.Date,
-			&spending.Created,
-			&updated,
+			&item.Category,
+			&item.Amount,
+			&item.Date,
+			&item.Currency,
+			&rate,
 		)
-		spending.Updated = updated.Time
-		res[spending.Category] = append(res[spending.Category], spending)
+
+		item.Rate = rate.Decimal
+		res[item.Category] = append(res[item.Category], item)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return res, nil
+	return res, err
 }
 
 func (s *Storage) GetSpendingAmount(
@@ -106,6 +113,8 @@ func (s *Storage) GetSpendingAmount(
 	start time.Time,
 	end time.Time,
 ) (decimal.Decimal, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "get spending amount")
+	defer span.Finish()
 	builder := getBuilder().
 		Select("sum(amount)").
 		From("spendings").

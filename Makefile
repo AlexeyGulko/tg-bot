@@ -35,7 +35,7 @@ migration-status: build-goose
 	${BINDIR}/goose status
 
 run:
-	go run ${PACKAGE}
+	go run ${PACKAGE} 2>&1 | tee data/file.d/log.txt
 
 generate: install-mockgen
 	${MOCKGEN} -source=internal/model/messages/incoming_msg.go -destination=internal/mocks/messages/messages_mocks.go
@@ -72,3 +72,7 @@ install-smartimports: bindir
 
 docker-run:
 	sudo docker compose up
+
+.PHONY = config
+config:
+	cp -R ./example/config ./data/config
