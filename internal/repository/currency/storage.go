@@ -7,7 +7,6 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 	"github.com/opentracing/opentracing-go"
 	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/dto"
 )
@@ -23,34 +22,34 @@ func NewStorage(db *sql.DB) *Storage {
 func (s *Storage) Add(ctx context.Context, currency dto.Currency) error {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "store currency")
 	defer span.Finish()
+	currency.ID = uuid.New()
 	builder := getBuilder().Insert("rates").Columns(
-		"created_at",
 		"code",
 		"rate",
 		"ts",
 		"id",
 	).Values(
-		time.Now(),
 		currency.Code,
 		currency.Rate,
 		currency.TimeStamp,
-		uuid.New(),
+		currency.ID,
 	)
 	query, args, err := builder.ToSql()
 	if err != nil {
 		return err
 	}
 
-	_, err = s.db.ExecContext(ctx, query, args...)
+	if _, err = s.db.ExecContext(ctx, query, args...); err != nil {
+		return err
+	}
 
-	return err
+	return nil
 }
 
-func (s *Storage) AddBulk(ctx context.Context, currencies []dto.Currency) error {
+func (s *Storage) AddBulk(ctx context.Context, currencies []*dto.Currency) error {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "store currency bulk")
 	defer span.Finish()
 	builder := getBuilder().Insert("rates").Columns(
-		"created_at",
 		"code",
 		"rate",
 		"ts",
@@ -58,12 +57,12 @@ func (s *Storage) AddBulk(ctx context.Context, currencies []dto.Currency) error 
 	)
 
 	for _, curr := range currencies {
+		curr.ID = uuid.New()
 		builder = builder.Values(
-			time.Now(),
 			curr.Code,
 			curr.Rate,
 			curr.TimeStamp,
-			uuid.New(),
+			curr.ID,
 		)
 	}
 
@@ -72,20 +71,27 @@ func (s *Storage) AddBulk(ctx context.Context, currencies []dto.Currency) error 
 		return err
 	}
 
-	_, err = s.db.ExecContext(ctx, query, args...)
-	return err
+	if _, err = s.db.ExecContext(ctx, query, args...); err != nil {
+		return err
+	}
+
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *Storage) Get(ctx context.Context, date time.Time, code string) (*dto.Currency, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "get currency")
 	defer span.Finish()
+
+	var currency dto.Currency
+
 	builder := getBuilder().Select(
 		"id",
 		"code",
 		"rate",
 		"ts",
-		"created_at",
-		"updated_at",
 	).From("rates").Where(sq.Eq{"code": code})
 
 	if !date.IsZero() {
@@ -97,8 +103,6 @@ func (s *Storage) Get(ctx context.Context, date time.Time, code string) (*dto.Cu
 		return nil, err
 	}
 
-	var currency dto.Currency
-	var updated pq.NullTime
 	row := s.db.QueryRowContext(ctx, query, args...)
 
 	err = row.Scan(
@@ -106,11 +110,8 @@ func (s *Storage) Get(ctx context.Context, date time.Time, code string) (*dto.Cu
 		&currency.Code,
 		&currency.Rate,
 		&currency.TimeStamp,
-		&currency.Created,
-		&updated,
 	)
 
-	currency.Updated = updated.Time
 	if err != nil {
 		return nil, err
 	}

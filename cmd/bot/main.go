@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/go-redis/redis/v8"
 	_ "github.com/lib/pq"
 	jaggerConfig "github.com/uber/jaeger-client-go/config"
 	currencyClient "gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/clients/currency"
@@ -18,6 +19,7 @@ import (
 	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/commands/month_budget"
 	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/commands/report"
 	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/commands/spend"
+	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/common/infrastructure/cache"
 	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/config"
 	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/logger"
 	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/model/messages"
@@ -43,14 +45,17 @@ func main() {
 	logger.Init(cfg)
 	iniTracing(cfg)
 	db := initDb(cfg)
+	rdb := initRDB(ctx, cfg)
 	tgClient := initTg(cfg)
 	ratesClient := currencyClient.New()
 
 	// командам не нужно персистентное хранилище
 	commandStorage := command.NewStorage()
-	spendingStorage := spending.NewStorage(db)
+
+	cacheSrv := cache.New(rdb)
+	spendingStorage := spending.NewStorageWithCache(db, cacheSrv)
 	userStorage := user.NewStorage(db)
-	currencyStorage := currencyStorage.NewStorage(db)
+	currencyStorage := currencyStorage.NewStorageWithCache(db, cacheSrv)
 
 	var updateRatesCh = make(chan update_rates.ChannelR)
 	currSvc := currencyService.New(ratesClient, cfg, currencyStorage, updateRatesCh)
@@ -141,4 +146,19 @@ func initTg(cfg *config.Service) *tg.Client {
 	}
 
 	return client
+}
+
+func initRDB(ctx context.Context, cfg *config.Service) *redis.Client {
+	rdb := redis.NewClient(
+		&redis.Options{
+			Addr:     cfg.RedisHostPort(),
+			Password: cfg.RedisPassword(),
+			DB:       cfg.RedisDB(),
+		})
+	_, err := rdb.Ping(ctx).Result()
+	if err != nil {
+		logger.Fatal("cannot init redis", zap.Error(err))
+	}
+
+	return rdb
 }

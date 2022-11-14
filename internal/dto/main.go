@@ -37,8 +37,6 @@ type Currency struct {
 	Code      string
 	Rate      decimal.Decimal
 	TimeStamp time.Time
-	Created   time.Time
-	Updated   time.Time
 }
 
 type CurrencyMap map[string]Currency

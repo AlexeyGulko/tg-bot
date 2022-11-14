@@ -8,6 +8,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/shopspring/decimal"
 	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/dto"
+	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/helpers"
 	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/logger"
 	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/workers/update_rates"
 	"go.uber.org/zap"
@@ -37,14 +38,18 @@ type config interface {
 type Storage interface {
 	Get(ctx context.Context, time time.Time, code string) (*dto.Currency, error)
 	Add(ctx context.Context, currency dto.Currency) error
-	AddBulk(ctx context.Context, currencies []dto.Currency) error
+	AddBulk(ctx context.Context, currencies []*dto.Currency) error
 }
 
 func (s *Service) UpdateRates(ctx context.Context, date time.Time) error {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "currency service update rates")
 	defer span.Finish()
-	year, month, day := date.Date()
-	date = time.Date(year, month, day, 0, 0, 0, 0, date.Location())
+
+	loc, err := time.LoadLocation("GMT")
+	if err != nil {
+		return err
+	}
+	date = helpers.StartOfDay(date, loc)
 
 	var code string
 	for _, item := range s.config.Currencies() {
@@ -54,9 +59,9 @@ func (s *Service) UpdateRates(ctx context.Context, date time.Time) error {
 		}
 	}
 
-	_, err := s.storage.Get(ctx, date, code)
+	val, err := s.storage.Get(ctx, date, code)
 
-	if err != sql.ErrNoRows && err != nil {
+	if (err != sql.ErrNoRows && err != nil) || val != nil {
 		return err
 	}
 
@@ -72,12 +77,12 @@ func (s *Service) UpdateRates(ctx context.Context, date time.Time) error {
 		availableCurrencies[v] = struct{}{}
 	}
 
-	filtered := make([]dto.Currency, 0, len(s.config.Currencies()))
-	for _, v := range allRates {
+	filtered := make([]*dto.Currency, 0, len(s.config.Currencies()))
+	for i, v := range allRates {
 		if _, has := availableCurrencies[v.Code]; !has {
 			continue
 		}
-		filtered = append(filtered, v)
+		filtered = append(filtered, &allRates[i])
 	}
 
 	err = s.storage.AddBulk(ctx, filtered)
@@ -113,8 +118,11 @@ func (s *Service) ConvertFrom(ctx context.Context, code string, amount decimal.D
 func (s *Service) GetRate(ctx context.Context, code string, date time.Time) (*dto.Currency, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "currency srv get rate")
 	defer span.Finish()
-	year, month, day := date.Date()
-	date = time.Date(year, month, day, 0, 0, 0, 0, date.Location())
+	loc, err := time.LoadLocation("GMT")
+	if err != nil {
+		return nil, err
+	}
+	date = helpers.StartOfDay(date, loc)
 	rate, err := s.storage.Get(ctx, date, code)
 
 	if err == sql.ErrNoRows {

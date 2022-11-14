@@ -20,9 +20,12 @@ func NewStorage(db *sql.DB) *Storage {
 	return &Storage{db: db}
 }
 
-func (s *Storage) Add(ctx context.Context, model dto.Spending) error {
+func (s *Storage) Add(ctx context.Context, model *dto.Spending) error {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "store spending")
 	defer span.Finish()
+
+	id := uuid.New()
+	now := time.Now()
 	builder := getBuilder().Insert("spendings").Columns(
 		"created_at",
 		"user_id",
@@ -31,12 +34,12 @@ func (s *Storage) Add(ctx context.Context, model dto.Spending) error {
 		"date",
 		"id",
 	).Values(
-		time.Now(),
+		now,
 		model.UserID,
 		model.Category,
 		model.Amount,
 		model.Date,
-		uuid.New(),
+		id,
 	)
 	query, args, err := builder.ToSql()
 	if err != nil {
@@ -45,7 +48,14 @@ func (s *Storage) Add(ctx context.Context, model dto.Spending) error {
 
 	_, err = s.db.ExecContext(ctx, query, args...)
 
-	return err
+	if err != nil {
+		return err
+	}
+
+	model.ID = id
+	model.Created = now
+
+	return nil
 }
 
 func (s *Storage) GetReportByCategory(
@@ -56,6 +66,7 @@ func (s *Storage) GetReportByCategory(
 ) (dto.SpendingReport, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "get spending report")
 	defer span.Finish()
+
 	builder := getBuilder().Select(
 		"s.category",
 		"s.amount",
