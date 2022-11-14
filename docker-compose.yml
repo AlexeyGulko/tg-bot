@@ -27,6 +27,7 @@ services:
     depends_on:
       - db
       - jaeger
+      - redis
     command: sh -c "go build  -o /app/bin/bot /app/cmd/bot && exec bin/bot 2>&1 | tee /app/logs/log.txt"
 
   jaeger:
@@ -115,4 +116,9 @@ services:
       # GELF TCP
       - 12201:12201
 
-
+  redis:
+    image: redis:7.0.5-alpine3.16
+    ports:
+      - 6379:6379
+    volumes:
+      - ./data/config/redis.conf:/usr/local/etc/redis/redis.conf

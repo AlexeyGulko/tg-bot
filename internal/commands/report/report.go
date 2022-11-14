@@ -10,6 +10,7 @@ import (
 	"github.com/shopspring/decimal"
 	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/commands"
 	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/dto"
+	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/helpers"
 	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/model/messages"
 )
 
@@ -74,7 +75,17 @@ func (c *CommandSequence) Report(ctx context.Context, message *dto.Message) mess
 	if err != nil {
 		return commands.NewError(err, false)
 	}
-	report, err := c.spendStorage.GetReportByCategory(ctx, user.ID, start, time.Now())
+
+	loc, err := time.LoadLocation("GMT")
+	if err != nil {
+		return commands.NewError(err, false)
+	}
+	report, err := c.spendStorage.GetReportByCategory(
+		ctx,
+		user,
+		helpers.StartOfDay(start, loc),
+		helpers.EndOfDay(time.Now(), loc),
+	)
 
 	if err != nil {
 		return commands.NewError(err, false)
@@ -110,7 +121,7 @@ func (c *CommandSequence) formatSpending(
 			amount := v.Amount
 			if c.config.DefaultCurrency() != v.Currency {
 				currency = v.Currency
-				var rate = v.Rate
+				rate := v.Rate
 				if v.Rate.Equal(decimal.Decimal{}) {
 					r, err := c.currencyService.GetRate(ctx, v.Currency, v.Date)
 					rate = r.Rate

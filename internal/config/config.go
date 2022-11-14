@@ -24,6 +24,9 @@ type Config struct {
 	ServiceName            string        `yaml:"service_name"`
 	JaegerHostPort         string        `yaml:"jaeger_host_port"`
 	Port                   int64         `yaml:"port"`
+	RedisHostPort          string        `yaml:"redis_host_port"`
+	RedisPassword          string        `yaml:"redis_password"`
+	RedisDb                int           `yaml:"redis_db"`
 }
 
 type Service struct {
@@ -96,4 +99,16 @@ func (s *Service) JaegerHostPort() string {
 
 func (s *Service) Port() int64 {
 	return s.config.Port
+}
+
+func (s *Service) RedisHostPort() string {
+	return s.config.RedisHostPort
+}
+
+func (s *Service) RedisDB() int {
+	return s.config.RedisDb
+}
+
+func (s *Service) RedisPassword() string {
+	return s.config.RedisPassword
 }

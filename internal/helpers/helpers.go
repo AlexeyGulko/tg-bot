@@ -35,3 +35,13 @@ func CreateMarkupMenu(data []string, perRow int64) tgbotapi.ReplyKeyboardMarkup 
 
 	return tgbotapi.NewReplyKeyboard(keyboard...)
 }
+
+func StartOfDay(t time.Time, location *time.Location) time.Time {
+	year, month, day := t.Date()
+	return time.Date(year, month, day, 0, 0, 0, 0, location)
+}
+
+func EndOfDay(t time.Time, location *time.Location) time.Time {
+	year, month, day := t.Date()
+	return time.Date(year, month, day+1, 0, 0, -1, 0, location)
+}

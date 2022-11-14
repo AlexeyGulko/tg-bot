@@ -132,7 +132,7 @@ func (c *CommandSequence) Sum(ctx context.Context, message *dto.Message) message
 
 	spending.Amount = amount
 
-	err = c.spendStorage.Add(ctx, spending)
+	err = c.spendStorage.Add(ctx, &spending)
 	delete(c.tempSpendings, message.UserID)
 	if err != nil {
 		return commands.NewError(err, false)
@@ -195,7 +195,11 @@ func (c *CommandSequence) Date(ctx context.Context, message *dto.Message) messag
 		return commands.NewError(err, false)
 	}
 
-	t, err := time.ParseInLocation("2 1 2006", message.Text, time.Now().Location())
+	loc, err := time.LoadLocation("GMT")
+	if err != nil {
+		return commands.NewError(err, false)
+	}
+	t, err := time.ParseInLocation("2 1 2006", message.Text, loc)
 	rdate := helpers.RandomDate().Format("2 1 2006")
 	if err != nil {
 		err := c.tgClient.SendMessage(ctx, fmt.Sprintf("Неправильный формат, попробуй в таком %s", rdate), message.UserID, nil)

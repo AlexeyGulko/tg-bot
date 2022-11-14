@@ -17,4 +17,10 @@ db_name: spending_bot
 
 dev_mode: development
 service_name: bot
-jaeger_host_port: jaeger:6831
+#jaeger_host_port: jaeger:6831
+jaeger_host_port: localhost:6831
+
+#redis_host_port: redis:6379
+redis_host_port: localhost:6379
+redis_db: 0
+redis_password: ""
