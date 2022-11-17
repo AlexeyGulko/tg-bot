@@ -38,7 +38,7 @@ func (e *CommandError) Error() string {
 
 type SpendingStorage interface {
 	Add(context.Context, *dto.Spending) error
-	GetReportByCategory(context.Context, *dto.User, time.Time, time.Time) (dto.SpendingReport, error)
+	GetReportByCategory(ctx context.Context, UserID uuid.UUID, currency string, start time.Time, end time.Time) (dto.SpendingReport, error)
 	GetSpendingAmount(ctx context.Context, UserID uuid.UUID, start time.Time, end time.Time) (decimal.Decimal, error)
 }
 

@@ -120,7 +120,7 @@ func (s *Storage) GetOrCreate(ctx context.Context, model dto.User) (*dto.User, e
 func GetUserWithTx(ctx context.Context, tx *sql.Tx, model dto.User) (*dto.User, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "get user with tx")
 	defer span.Finish()
-	query, args, err := getQuery(model.TgID)
+	query, args, err := getQueryByDto(model)
 	if err != nil {
 		return nil, err
 	}

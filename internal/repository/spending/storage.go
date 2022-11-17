@@ -61,6 +61,7 @@ func (s *Storage) Add(ctx context.Context, model *dto.Spending) error {
 func (s *Storage) GetReportByCategory(
 	ctx context.Context,
 	UserID uuid.UUID,
+	Currency string,
 	start time.Time,
 	end time.Time,
 ) (dto.SpendingReport, error) {
@@ -75,7 +76,10 @@ func (s *Storage) GetReportByCategory(
 		"r.rate",
 	).
 		LeftJoin("users u on s.user_id = u.id").
-		LeftJoin("rates r on r.id = (select rl.id from rates rl where u.currency = rl.code and s.date = rl.ts limit 1)").
+		LeftJoin(
+			"rates r on r.id = (select rl.id from rates rl where ? = rl.code and s.date = rl.ts limit 1)",
+			Currency,
+		).
 		From("spendings s").
 		Where(sq.Eq{"s.user_id": UserID}).
 		Where(sq.GtOrEq{"s.date": start}).
@@ -108,14 +112,15 @@ func (s *Storage) GetReportByCategory(
 			&rate,
 		)
 
-		item.Rate = rate.Decimal
-		res[item.Category] = append(res[item.Category], item)
 		if err != nil {
 			return nil, err
 		}
+
+		item.Rate = rate.Decimal
+		res[item.Category] = append(res[item.Category], item)
 	}
 
-	return res, err
+	return res, nil
 }
 
 func (s *Storage) GetSpendingAmount(

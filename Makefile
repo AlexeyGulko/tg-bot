@@ -9,15 +9,18 @@ PACKAGE=gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/cmd/bot
 
 all: format build test lint
 
-build: bindir
+build: bindir build-goose reporter-build
 	go build -o ${BINDIR}/bot ${PACKAGE}
-	go build -o ${BINDIR}/goose ./cmd/goose
+	go build -o ${BINDIR}/report ./cmd/report
 
 build-goose: bindir
 	go build -o ${BINDIR}/goose ./cmd/goose
 
 build-seeder: bindir
 	go build -o ${BINDIR}/seeder ./cmd/seeder
+
+reporter-build:
+	go build -o ${BINDIR}/report ./cmd/report
 
 test:
 	go test ./...
@@ -36,6 +39,9 @@ migration-status: build-goose
 
 run:
 	go run ${PACKAGE} 2>&1 | tee data/file.d/log.txt
+
+reporter-run:
+	exec bin/report 2>&1 | tee data/file.d/log.txt
 
 generate: install-mockgen
 	${MOCKGEN} -source=internal/model/messages/incoming_msg.go -destination=internal/mocks/messages/messages_mocks.go
@@ -76,3 +82,6 @@ docker-run:
 .PHONY = config
 config:
 	cp -R ./example/config ./data/config
+
+buf-generate:
+	buf generate ./api/report.proto

@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package bot.v1;
+
+option go_package = "gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/v1;botv1";
+
+import "google/api/annotations.proto";
+import "protoc-gen-validate/validate/validate.proto";
+
+service Reporter {
+  rpc SendReport (ReportRequest) returns (ReportResponse) {
+    option (google.api.http) = {
+      post: "/post"
+      body: "*"
+    };
+  }
+}
+
+message ReportRequest {
+  bytes UserId = 1 [(validate.rules).string.uuid = true];
+  string Report = 2 [(validate.rules).string.min_len = 1];
+}
+
+message ReportResponse {}
+
+
+message GenerateReportRequest {
+  bytes UserId = 1 [(validate.rules).string.uuid = true];
+  string Currency = 2 [(validate.rules).string.len = 3];
+  int64 Start = 3;
+  int64 End = 4;
+  string Period = 5;
+}

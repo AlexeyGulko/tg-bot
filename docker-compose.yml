@@ -12,23 +12,48 @@ services:
       POSTGRES_USER: user
       POSTGRES_DB: spending_bot
 
-  app:
-    build: ./
+  bot:
+    build:
+      context: ./
+      dockerfile: ./distr/bot/Dockerfile
     ports:
       - "8080:8080"
     volumes:
-      - ./data:/app/data
+      - ./:/app
       - ./data/file.d/:/app/logs
-      - ./cmd/bot:/app/cmd/bot
-      - ./internal:/app/internal
     links:
       - db
       - jaeger
+      - reporter
+      - redis
+      - kafka
     depends_on:
       - db
       - jaeger
       - redis
-    command: sh -c "go build  -o /app/bin/bot /app/cmd/bot && exec bin/bot 2>&1 | tee /app/logs/log.txt"
+      - kafka
+    command: sh -c "go build -o /app/bin/bot /app/cmd/bot && exec bin/bot 2>&1 | tee /app/logs/log.txt"
+
+  reporter:
+    build:
+      context: ./
+      dockerfile: ./distr/reporter/Dockerfile
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./:/app
+      - ./data/file.d/:/app/logs
+    links:
+      - db
+      - jaeger
+      - redis
+      - kafka
+    depends_on:
+      - db
+      - jaeger
+      - redis
+      - kafka
+    command: sh -c "go mod download && go build -o /app/bin/report /app/cmd/report && exec bin/report 2>&1 | tee /app/logs/log.txt"
 
   jaeger:
     image: jaegertracing/all-in-one:1.18
@@ -49,9 +74,9 @@ services:
       - ./data/config/prometheus.yml:/etc/prometheus/prometheus.yml
       - ./data/config/alerts.yml:/etc/prometheus/alerts.yml
     links:
-      - app
+      - bot
     depends_on:
-      - app
+      - bot
     extra_hosts:
       - host.docker.internal:host-gateway
 
@@ -122,3 +147,23 @@ services:
       - 6379:6379
     volumes:
       - ./data/config/redis.conf:/usr/local/etc/redis/redis.conf
+  kafka:
+    image: wurstmeister/kafka
+    hostname: kafka
+    ports:
+      - "9092:9092"
+    links:
+      - zookeeper
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: "kafka"
+      KAFKA_ADVERTISED_PORT: "9092"
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+    depends_on:
+      - zookeeper
+    container_name: kafka
+  zookeeper:
+    image: wurstmeister/zookeeper
+    ports:
+      - "2181:2181"
+    container_name: zookeeper
+

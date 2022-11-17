@@ -16,6 +16,7 @@ db_host: localhost
 db_name: spending_bot
 
 dev_mode: development
+#dev_mode: production
 service_name: bot
 #jaeger_host_port: jaeger:6831
 jaeger_host_port: localhost:6831
@@ -24,3 +25,12 @@ jaeger_host_port: localhost:6831
 redis_host_port: localhost:6379
 redis_db: 0
 redis_password: ""
+
+#bot_host: bot
+bot_host: localhost
+bot_http_port: 8080
+bot_grpc_port: 8081
+
+#kafka_host: localhost
+kafka_host: kafka
+kafka_port: 9092
