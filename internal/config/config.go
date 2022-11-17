@@ -27,6 +27,11 @@ type Config struct {
 	RedisHostPort          string        `yaml:"redis_host_port"`
 	RedisPassword          string        `yaml:"redis_password"`
 	RedisDb                int           `yaml:"redis_db"`
+	BotHost                string        `yaml:"bot_host"`
+	BotGrpcPort            int64         `yaml:"bot_grpc_port"`
+	BotHttpPort            int64         `yaml:"bot_http_port"`
+	KafkaHost              string        `yaml:"kafka_host"`
+	KafkaPort              int64         `yaml:"kafka_port"`
 }
 
 type Service struct {
@@ -111,4 +116,24 @@ func (s *Service) RedisDB() int {
 
 func (s *Service) RedisPassword() string {
 	return s.config.RedisPassword
+}
+
+func (s *Service) BotHost() string {
+	return s.config.BotHost
+}
+
+func (s *Service) BotGrpcPort() int64 {
+	return s.config.BotGrpcPort
+}
+
+func (s *Service) BotHttpPort() int64 {
+	return s.config.BotHttpPort
+}
+
+func (s *Service) KafkaHost() string {
+	return s.config.KafkaHost
+}
+
+func (s *Service) KafkaPort() int64 {
+	return s.config.KafkaPort
 }

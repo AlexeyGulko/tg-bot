@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/opentracing/opentracing-go"
 	"gitlab.ozon.dev/dev.gulkoalexey/gulko-alexey/internal/dto"
 	"golang.org/x/net/context"
@@ -46,14 +47,15 @@ func (s *StorageWithCache) Add(ctx context.Context, model *dto.Spending) error {
 
 func (s *StorageWithCache) GetReportByCategory(
 	ctx context.Context,
-	user *dto.User,
+	UserID uuid.UUID,
+	currency string,
 	start time.Time,
 	end time.Time,
 ) (dto.SpendingReport, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "get spending report from cache")
 	defer span.Finish()
 
-	key := fmt.Sprintf("report_%s_%s_%d_%d", user.ID, user.Currency, start.Unix(), end.Unix())
+	key := fmt.Sprintf("report_%s_%s_%d_%d", UserID, currency, start.Unix(), end.Unix())
 	var spending dto.SpendingReport
 	has, err := s.cache.Get(ctx, key, &spending)
 	if err != nil {
@@ -64,7 +66,7 @@ func (s *StorageWithCache) GetReportByCategory(
 		return spending, nil
 	}
 
-	if spending, err = s.Storage.GetReportByCategory(ctx, user.ID, start, end); err != nil {
+	if spending, err = s.Storage.GetReportByCategory(ctx, UserID, currency, start, end); err != nil {
 		return nil, err
 	}
 

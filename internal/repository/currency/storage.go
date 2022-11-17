@@ -75,9 +75,6 @@ func (s *Storage) AddBulk(ctx context.Context, currencies []*dto.Currency) error
 		return err
 	}
 
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
